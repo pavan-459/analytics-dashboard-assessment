@@ -1,91 +1,93 @@
+// src/state/store.js
 import { create } from "zustand";
-import Papa from "papaparse";
-import { computeMetrics, filterRows, uniqueValues, yearExtent, yearBuckets, makeCounts, typeCounts } from "../lib/evSelectors";
-// Import CSV as raw string (no fetch needed)
-import csvText from "../../data-to-visualize/Electric_Vehicle_Population_Data.csv?raw";
+
+const API = "/.netlify/functions/vehicles"; // Netlify Functions base
 
 const initialFilters = {
   make: "All",
-  type: "All", // 'BEV' | 'PHEV' | 'All'
-  yearMin: null,
-  yearMax: null,
-  search: ""
+  type: "All",
+  yearMin: "",
+  yearMax: "",
+  search: "",
 };
 
-const useStore = create((set, get) => ({
+export default create((set, get) => ({
   status: "idle",
   error: null,
   rows: [],
   filters: initialFilters,
-  options: { makes: ["All"], years: [] },
+  pagination: { page: 1, pageSize: 50 },
+  total: 0,
   metrics: {
-    total: 0, bev: 0, phev: 0, uniqueMakes: 0, newestYear: null, oldestYear: null
+    total: 0,
+    bev: 0,
+    phev: 0,
+    uniqueMakes: 0,
+    newestYear: null,
+    oldestYear: null,
   },
 
-  loadData: () => {
+  setFilter: (key, value) =>
+    set((s) => ({
+      filters: { ...s.filters, [key]: value },
+      pagination: { ...s.pagination, page: 1 },
+    })),
+  setPage: (page) => set((s) => ({ pagination: { ...s.pagination, page } })),
+  setPageSize: (pageSize) => set(() => ({ pagination: { page: 1, pageSize } })),
+
+  // fetch current page
+  loadPage: async () => {
     set({ status: "loading", error: null });
+    const f = get().filters,
+      p = get().pagination;
+    const q = new URLSearchParams({
+      page: String(p.page),
+      pageSize: String(p.pageSize),
+      make: f.make,
+      type: f.type,
+      yearMin: String(f.yearMin || ""),
+      yearMax: String(f.yearMax || ""),
+      search: f.search,
+    });
     try {
-      const parsed = Papa.parse(csvText, {
-        header: true,
-        dynamicTyping: true,
-        skipEmptyLines: true,
-      });
-      const rows = parsed.data.map(r => ({
-        ...r,
-        Make: String(r["Make"] || "").trim(),
-        EVType: String(r["Electric Vehicle Type"] || "").includes("Battery") ? "BEV"
-               : String(r["Electric Vehicle Type"] || "").includes("Plug-in") ? "PHEV"
-               : String(r["Electric Vehicle Type"] || "").trim(),
-        ModelYear: Number(r["Model Year"])
-      }));
-
-      const [ymin, ymax] = yearExtent(rows);
-      const makes = ["All", ...uniqueValues(rows, "Make").sort()];
-      const filters = { ...initialFilters, yearMin: ymin, yearMax: ymax };
-
-      set({
-        status: "ready",
-        rows,
-        filters,
-        options: { makes, years: Array.from({length: ymax - ymin + 1}, (_,i)=>ymin+i) },
-        metrics: computeMetrics(rows)
-      });
+      const r = await fetch(`${API}?${q.toString()}`);
+      const { rows, total, page, pageSize } = await r.json();
+      set({ rows, total, pagination: { page, pageSize }, status: "ready" });
     } catch (e) {
-      set({ status: "error", error: e?.message || "Failed to parse CSV" });
+      set({ status: "error", error: e.message });
     }
   },
 
-  setFilter: (key, value) => {
-    const filters = { ...get().filters, [key]: value };
-    set({ filters });
+  // fetch aggregates for KPIs/charts
+  loadMetrics: async () => {
+    const f = get().filters;
+    const q = new URLSearchParams({ ...f, mode: "metrics" });
+    const r = await fetch(`${API}?${q.toString()}`);
+    const { metrics } = await r.json();
+    set({ metrics });
   },
 
-  // Derived selectors as functions (components can call them)
-  filteredRows: () => {
-    return filterRows(get().rows, get().filters);
+  loadYearTrend: async () => {
+    const f = get().filters;
+    const q = new URLSearchParams({ ...f, mode: "yearTrend" });
+    const r = await fetch(`${API}?${q.toString()}`);
+    const { series } = await r.json();
+    return series;
   },
 
-  // Chart data
-  modelYearSeries: () => {
-    const fr = get().filteredRows();
-    return yearBuckets(fr).map(([year, count]) => ({ year, count }));
+  loadTopMakes: async (k = 10) => {
+    const f = get().filters;
+    const q = new URLSearchParams({ ...f, mode: "topMakes", k: String(k) });
+    const r = await fetch(`${API}?${q.toString()}`);
+    const { series } = await r.json();
+    return series;
   },
 
-  topMakeSeries: (k=10) => {
-    const fr = get().filteredRows();
-    const mc = makeCounts(fr);
-    return mc.slice(0, k).map(([make, count]) => ({ make, count }));
+  loadTypeSplit: async () => {
+    const f = get().filters;
+    const q = new URLSearchParams({ ...f, mode: "typeSplit" });
+    const r = await fetch(`${API}?${q.toString()}`);
+    const { series } = await r.json();
+    return series;
   },
-
-  typeSplitSeries: () => {
-    const fr = get().filteredRows();
-    const tc = typeCounts(fr);
-    return [
-      { name: "BEV", value: tc.BEV || 0 },
-      { name: "PHEV", value: tc.PHEV || 0 }
-    ];
-  }
 }));
-
-export default useStore;
-

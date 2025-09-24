@@ -12,7 +12,6 @@ export default function App() {
   const { status, error, rows, loadData, metrics } = useStore();
 
   useEffect(() => { loadData(); }, [loadData]);
-
   return (
     <div className="min-h-screen">
       <Header />

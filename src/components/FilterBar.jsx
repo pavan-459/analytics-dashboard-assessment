@@ -13,9 +13,13 @@ export default function FilterBar() {
           <select
             className="rounded-lg border px-3 py-2 text-sm"
             value={filters.make}
-            onChange={e => setFilter("make", e.target.value)}
+            onChange={(e) => setFilter("make", e.target.value)}
           >
-            {options.makes.map(m => <option key={m} value={m}>{m}</option>)}
+            {options.makes.map((m) => (
+              <option key={m} value={m}>
+                {m}
+              </option>
+            ))}
           </select>
         </div>
 
@@ -24,7 +28,7 @@ export default function FilterBar() {
           <select
             className="rounded-lg border px-3 py-2 text-sm"
             value={filters.type}
-            onChange={e => setFilter("type", e.target.value)}
+            onChange={(e) => setFilter("type", e.target.value)}
           >
             <option value="All">All</option>
             <option value="BEV">BEV</option>
@@ -38,7 +42,7 @@ export default function FilterBar() {
             type="number"
             className="rounded-lg border px-3 py-2 text-sm w-28"
             value={filters.yearMin ?? ""}
-            onChange={e => setFilter("yearMin", Number(e.target.value))}
+            onChange={(e) => setFilter("yearMin", Number(e.target.value))}
           />
         </div>
 
@@ -48,7 +52,7 @@ export default function FilterBar() {
             type="number"
             className="rounded-lg border px-3 py-2 text-sm w-28"
             value={filters.yearMax ?? ""}
-            onChange={e => setFilter("yearMax", Number(e.target.value))}
+            onChange={(e) => setFilter("yearMax", Number(e.target.value))}
           />
         </div>
       </div>
@@ -60,8 +64,16 @@ export default function FilterBar() {
           placeholder="Search make, model, VIN or county…"
           className="rounded-lg border px-3 py-2 text-sm w-full md:w-80"
           value={filters.search}
-          onChange={e => setFilter("search", e.target.value)}
+          onChange={(e) => setFilter("search", e.target.value)}
         />
+      </div>
+      <div className="flex justify-end mb-2">
+        <button
+          onClick={() => downloadCsv(filteredRows)}
+          className="px-3 py-2 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700"
+        >
+          Download CSV
+        </button>
       </div>
     </div>
   );
